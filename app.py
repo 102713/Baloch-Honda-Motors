@@ -16,7 +16,6 @@ st.set_page_config(
 # ======================== STYLE ===========================
 st.markdown("""
 <style>
-/* Main Theme */
 .block-container {padding-top: 1rem; padding-bottom: 2rem;}
 .hero {
     background: linear-gradient(115deg,#090909 0%,#1c1c1c 55%,#b40000 100%);
@@ -44,10 +43,7 @@ st.markdown("""
 .section-title {font-size: 19px; font-weight: 900; margin: 14px 0 8px;}
 div[data-testid="stSidebar"] {border-right: 1px solid #e5e7eb;}
 div[data-testid="stSidebar"] .stRadio label {font-weight: 700;}
-/* Big Text Area */
 .stTextArea textarea {min-height: 100px !important;}
-/* Price Input - No default 0.00 */
-input[type="number"] {color: #111827 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -125,37 +121,18 @@ def stock_data(purchases, sales):
 
 def get_customer_balance(code):
     bal = 0.0
-    # Sales udhaar
     for x in sales:
         if str(x.get("customer_code") or "") == code:
             bal += max(sale_total(x) - n(x.get("amount_received")), 0)
-    # Payments
     for x in payments:
         if str(x.get("customer_code") or "") == code:
             bal -= n(x.get("amount"))
-    # Cash transactions
     for x in cash_trans:
         if str(x.get("customer_code") or "") == code:
             if x.get("transaction_type") == "Cash Udaar":
                 bal += n(x.get("amount"))
-            else:  # Cash Jama
+            else:
                 bal -= n(x.get("amount"))
-    return bal
-
-def get_supplier_balance(code):
-    bal = 0.0
-    # Purchases
-    for x in purchases:
-        if str(x.get("supplier_code") or "") == code:
-            bal += n(x.get("total_amount") or purchase_total(x))
-    # Payments
-    for x in supplier_payments:
-        if str(x.get("supplier_code") or "") == code:
-            bal -= n(x.get("amount"))
-    # Advances
-    for x in supplier_advances:
-        if str(x.get("supplier_code") or "") == code:
-            bal -= n(x.get("amount"))
     return bal
 
 def generate_code(prefix, existing_codes):
@@ -234,21 +211,8 @@ page = st.sidebar.radio("MAIN MENU", [
     "📅 Reports"
 ])
 
-# Auto-collapse sidebar
 if page != st.session_state.previous_page:
     st.session_state.previous_page = page
-    # Sidebar collapse via JavaScript
-    st.markdown("""
-    <script>
-    // Auto collapse sidebar on page change
-    const sidebar = document.querySelector('[data-testid="stSidebar"]');
-    if (sidebar) {
-        sidebar.style.width = '0px';
-        sidebar.style.minWidth = '0px';
-        sidebar.style.maxWidth = '0px';
-    }
-    </script>
-    """, unsafe_allow_html=True)
 
 if st.sidebar.button("🚪 Logout", use_container_width=True):
     st.session_state.logged_in = False
@@ -274,7 +238,6 @@ if page == "🏠 Dashboard":
     pq = sum(q(x.get("quantity")) for x in purchases)
     sq = sum(q(x.get("quantity")) for x in sales)
 
-    # Gross Profit
     costs = defaultdict(lambda: [0, 0.0])
     for x in purchases:
         m = str(x.get("model") or "Other")
@@ -286,7 +249,6 @@ if page == "🏠 Dashboard":
         avg = costs[m][1] / costs[m][0] if costs[m][0] else 0
         gross += sale_total(x) - q(x.get("quantity")) * avg
 
-    # Receivables
     receivables = 0
     for c in customers:
         code = str(c.get("customer_code") or "")
@@ -338,7 +300,6 @@ if page == "🏠 Dashboard":
 elif page == "🛒 Purchases":
     st.title("🛒 Purchase Entry")
 
-    # Supplier codes
     supplier_codes = [s.get("supplier_code") for s in suppliers if s.get("supplier_code")]
 
     with st.form("purchase"):
@@ -366,7 +327,6 @@ elif page == "🛒 Purchases":
                 st.error("Enter a valid rate.")
             else:
                 try:
-                    # Auto-create supplier if new
                     if supplier_name and supplier_code not in supplier_codes:
                         supabase.table("suppliers").insert({
                             "supplier_code": supplier_code,
@@ -400,7 +360,6 @@ elif page == "🛒 Purchases":
     c[2].metric("ENTRIES", len(data))
     st.dataframe(data, use_container_width=True, hide_index=True)
 
-    # Edit/Delete
     if purchases:
         st.markdown("### ✏️ Edit / Delete Purchase")
         ids = [x.get("id") for x in purchases if x.get("id")]
@@ -438,7 +397,6 @@ elif page == "🛒 Purchases":
 elif page == "🏍️ Sales":
     st.title("🏍️ Sales Entry")
 
-    # Customer auto-suggest
     customer_names = [c.get("name") for c in customers if c.get("name")]
     customer_codes = {c.get("customer_code"): c.get("name") for c in customers if c.get("customer_code")}
     customer_phones = {c.get("customer_code"): c.get("phone") for c in customers if c.get("customer_code")}
@@ -473,11 +431,7 @@ elif page == "🏍️ Sales":
             else:
                 try:
                     # Auto-create customer if new
-                    if customer_name and customer_code not in customer_codes:
-                        # Generate new code if not provided
-                        if not customer_code:
-                            existing = {c.get("customer_code") for c in customers}
-                            customer_code = generate_code("CUS", existing)
+                    if customer_name and customer_code and customer_code not in customer_codes:
                         supabase.table("customers").insert({
                             "customer_code": customer_code,
                             "name": customer_name,
@@ -485,6 +439,7 @@ elif page == "🏍️ Sales":
                         }).execute()
                         st.info(f"New customer created: {customer_code}")
 
+                    # ✅ FIX: Balance column hata diya (database auto calculate karega)
                     supabase.table("sales").insert({
                         "sale_date": str(d),
                         "customer_code": customer_code,
@@ -493,8 +448,8 @@ elif page == "🏍️ Sales":
                         "quantity": int(qty_input),
                         "sale_rate_per_bike": float(rate),
                         "amount_received": float(received or 0),
-                        "balance": float(balance),
                         "notes": notes
+                        # balance nahi bhej rahe — database GENERATED column hai
                     }).execute()
                     st.success("Sale saved successfully!")
                     st.rerun()
@@ -512,7 +467,6 @@ elif page == "🏍️ Sales":
     c[3].metric("BALANCE", money(sum(max(sale_total(x) - n(x.get("amount_received")), 0) for x in data)))
     st.dataframe(data, use_container_width=True, hide_index=True)
 
-    # Edit/Delete
     if sales:
         st.markdown("### ✏️ Edit / Delete Sale")
         ids = [x.get("id") for x in sales if x.get("id")]
@@ -584,7 +538,6 @@ elif page == "💰 Customer Khata":
 
             start, end = date_range("From Date → To Date", f"khata_range_{code}")
 
-            # Build ledger
             ledger = []
             for x in sales:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("sale_date"), start, end):
@@ -616,7 +569,6 @@ elif page == "💰 Customer Khata":
 
             ledger.sort(key=lambda x: str(x["Date"] or ""))
 
-            # Running balance
             running = 0
             for x in ledger:
                 running += x["Debit (Udhaar)"] - x["Credit (Payment)"]
@@ -696,7 +648,6 @@ elif page == "💸 Expenses":
     st.metric("TOTAL EXPENSES", money(sum(n(x.get("amount")) for x in data)))
     st.dataframe(data, use_container_width=True, hide_index=True)
 
-    # Edit/Delete
     if expenses:
         ids = [x.get("id") for x in expenses if x.get("id")]
         if ids:
@@ -735,7 +686,7 @@ elif page == "📦 Stock":
     st.dataframe(stock_data(purchases, sales), use_container_width=True, hide_index=True)
 
 # ==================== REPORTS =============================
-else:  # Reports
+else:
     st.title("📅 Date Range Report")
 
     start, end = date_range("Report From Date → To Date", "report_range")
