@@ -327,13 +327,20 @@ elif page == "🛒 Purchases":
                 st.error("Enter a valid rate.")
             else:
                 try:
-                    if supplier_name and supplier_code not in supplier_codes:
-                        supabase.table("suppliers").insert({
-                            "supplier_code": supplier_code,
-                            "name": supplier_name,
-                            "phone": phone
-                        }).execute()
-                        st.info(f"New supplier created: {supplier_code}")
+                    # Check if supplier already exists
+if supplier_code:
+    existing = supabase.table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
+    if not existing.data and supplier_name:
+        supabase.table("suppliers").insert({
+            "supplier_code": supplier_code,
+            "name": supplier_name,
+            "phone": phone
+        }).execute()
+        st.info(f"New supplier created: {supplier_code}")
+    elif existing.data and supplier_name:
+        # Update supplier name if changed
+        if existing.data[0].get("name") != supplier_name:
+            supabase.table("suppliers").update({"name": supplier_name}).eq("supplier_code", supplier_code).execute()
 
                     supabase.table("purchases").insert({
                         "purchase_date": str(d),
@@ -517,7 +524,6 @@ elif page == "👥 Customers":
             "Outstanding": money(max(get_customer_balance(code), 0))
         })
     st.dataframe(table, use_container_width=True, hide_index=True)
-
 # ==================== CUSTOMER KHATA ======================
 elif page == "💰 Customer Khata":
     st.title("💰 Customer Khata / Ledger")
@@ -539,15 +545,21 @@ elif page == "💰 Customer Khata":
             start, end = date_range("From Date → To Date", f"khata_range_{code}")
 
             ledger = []
+            
+            # ✅ SALES SE UDHAAR (BALANCE) ADD KAREIN
             for x in sales:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("sale_date"), start, end):
-                    ledger.append({
-                        "Date": x.get("sale_date"),
-                        "Type": "Bike Sale",
-                        "Description": f"{x.get('model')} × {q(x.get('quantity'))}",
-                        "Debit (Udhaar)": max(sale_total(x) - n(x.get("amount_received")), 0),
-                        "Credit (Payment)": 0
-                    })
+                    balance_amount = max(sale_total(x) - n(x.get("amount_received")), 0)
+                    if balance_amount > 0:
+                        ledger.append({
+                            "Date": x.get("sale_date"),
+                            "Type": "Bike Sale (Udhaar)",
+                            "Description": f"{x.get('model')} × {q(x.get('quantity'))}",
+                            "Debit (Udhaar)": balance_amount,
+                            "Credit (Payment)": 0
+                        })
+            
+            # ✅ PAYMENTS
             for x in payments:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("payment_date"), start, end):
                     ledger.append({
@@ -557,6 +569,8 @@ elif page == "💰 Customer Khata":
                         "Debit (Udhaar)": 0,
                         "Credit (Payment)": n(x.get("amount"))
                     })
+            
+            # ✅ CASH TRANSACTIONS
             for x in cash_trans:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("transaction_date"), start, end):
                     ledger.append({
@@ -569,17 +583,39 @@ elif page == "💰 Customer Khata":
 
             ledger.sort(key=lambda x: str(x["Date"] or ""))
 
+            # ✅ RUNNING BALANCE
             running = 0
             for x in ledger:
                 running += x["Debit (Udhaar)"] - x["Credit (Payment)"]
                 x["Balance"] = running
 
+            # ✅ CURRENT OUTSTANDING BALANCE
+            current_balance = 0
+            for x in sales:
+                if str(x.get("customer_code") or "") == code:
+                    current_balance += max(sale_total(x) - n(x.get("amount_received")), 0)
+            for x in payments:
+                if str(x.get("customer_code") or "") == code:
+                    current_balance -= n(x.get("amount"))
+            for x in cash_trans:
+                if str(x.get("customer_code") or "") == code:
+                    if x.get("transaction_type") == "Cash Udaar":
+                        current_balance += n(x.get("amount"))
+                    else:
+                        current_balance -= n(x.get("amount"))
+
             c = st.columns(3)
             c[0].metric("TOTAL UDHAAR", money(sum(x["Debit (Udhaar)"] for x in ledger)))
             c[1].metric("TOTAL PAYMENTS", money(sum(x["Credit (Payment)"] for x in ledger)))
-            c[2].metric("CURRENT BALANCE", money(max(running, 0)))
+            c[2].metric("CURRENT BALANCE", money(max(current_balance, 0)))
 
-            st.dataframe(ledger, use_container_width=True, hide_index=True)
+            if ledger:
+                st.dataframe(ledger, use_container_width=True, hide_index=True)
+            else:
+                st.info("No transactions found for this period.")
+    else:
+        st.info("No customers found.")
+
 
 # ==================== CASH TRANSACTION ====================
 elif page == "💵 Cash Transaction":
