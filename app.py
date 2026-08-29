@@ -300,8 +300,6 @@ if page == "🏠 Dashboard":
 elif page == "🛒 Purchases":
     st.title("🛒 Purchase Entry")
 
-    supplier_codes = [s.get("supplier_code") for s in suppliers if s.get("supplier_code")]
-
     with st.form("purchase"):
         cols = st.columns(2)
         with cols[0]:
@@ -328,20 +326,20 @@ elif page == "🛒 Purchases":
             else:
                 try:
                     # Check if supplier already exists
-if supplier_code:
-    existing = supabase.table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
-    if not existing.data and supplier_name:
-        supabase.table("suppliers").insert({
-            "supplier_code": supplier_code,
-            "name": supplier_name,
-            "phone": phone
-        }).execute()
-        st.info(f"New supplier created: {supplier_code}")
-    elif existing.data and supplier_name:
-        # Update supplier name if changed
-        if existing.data[0].get("name") != supplier_name:
-            supabase.table("suppliers").update({"name": supplier_name}).eq("supplier_code", supplier_code).execute()
+                    if supplier_code:
+                        existing = supabase.table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
+                        if not existing.data and supplier_name:
+                            supabase.table("suppliers").insert({
+                                "supplier_code": supplier_code,
+                                "name": supplier_name,
+                                "phone": phone
+                            }).execute()
+                            st.info(f"New supplier created: {supplier_code}")
+                        elif existing.data and supplier_name:
+                            if existing.data[0].get("name") != supplier_name:
+                                supabase.table("suppliers").update({"name": supplier_name}).eq("supplier_code", supplier_code).execute()
 
+                    # Save purchase
                     supabase.table("purchases").insert({
                         "purchase_date": str(d),
                         "supplier_code": supplier_code,
