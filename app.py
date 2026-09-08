@@ -49,10 +49,19 @@ div[data-testid="stSidebar"] .stRadio label {font-weight: 700;}
 
 # ==================== SUPABASE ============================
 try:
-    supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    supabase_main = create_client(
+        st.secrets["SUPABASE_URL"], 
+        st.secrets["SUPABASE_KEY"]
+    )
+    
+    supabase_reg = create_client(
+        st.secrets["SUPABASE_REG_URL"], 
+        st.secrets["SUPABASE_REG_KEY"]
+    )
 except Exception as e:
     st.error(f"Supabase Connection Error: {e}")
-    supabase = None
+    supabase_main = None
+    supabase_reg = None
 
 # ==================== SESSION STATE =======================
 if "logged_in" not in st.session_state:
@@ -208,7 +217,9 @@ page = st.sidebar.radio("MAIN MENU", [
     "💵 Cash Transaction",
     "💸 Expenses",
     "📦 Stock",
+    "📄 Bike Registration",
     "📅 Reports"
+])
 ])
 
 if page != st.session_state.previous_page:
@@ -748,3 +759,169 @@ else:
     st.dataframe(dpay, use_container_width=True, hide_index=True)
     st.markdown("### 💵 Cash Transactions")
     st.dataframe(dcash, use_container_width=True, hide_index=True)
+    # ==================== BIKE REGISTRATION ====================
+elif page == "📄 Bike Registration":
+    st.title("📄 Bike Registration / Ownership")
+    
+    if not supabase_reg:
+        st.error("Registration database not connected. Please check secrets.")
+    else:
+        tab1, tab2 = st.tabs(["📝 New Registration", "🔍 Search Registration"])
+        
+        with tab1:
+            with st.form("bike_registration"):
+                st.markdown("### 🔧 Bike Details")
+                col1, col2 = st.columns(2)
+                with col1:
+                    engine_number = st.text_input("Engine Number", placeholder="ENG-001")
+                    chassis_number = st.text_input("Chassis Number", placeholder="CH-001")
+                with col2:
+                    model = st.selectbox("Model", BIKE_PRESETS + ["Custom / Other"])
+                    custom_model = st.text_input("Custom Model Name", disabled=(model != "Custom / Other"))
+                    final_model = custom_model.strip() if model == "Custom / Other" else model
+                
+                st.markdown("---")
+                st.markdown("### 👤 Owner Details")
+                col1, col2 = st.columns(2)
+                with col1:
+                    owner_name = st.text_input("Owner Name", placeholder="Full name as per NIC")
+                    owner_nic = st.text_input("NIC", placeholder="12345-6789012-3")
+                with col2:
+                    owner_phone = st.text_input("Phone", placeholder="0300-1234567")
+                    owner_address = st.text_area("Address", placeholder="House #12, Street 5, ...", height=80)
+                
+                st.markdown("---")
+                st.markdown("### 📅 Registration Details")
+                col1, col2 = st.columns(2)
+                with col1:
+                    registration_date = st.date_input("Registration Date", date.today(), format="DD-MM-YYYY")
+                    serial_number = st.text_input("Serial Number", placeholder="Optional")
+                with col2:
+                    purchase_dealer = st.text_input("Purchase Dealer", placeholder="Dealer name")
+                
+                st.markdown("---")
+                st.markdown("### 📎 Upload NIC")
+                col1, col2 = st.columns(2)
+                with col1:
+                    nic_front = st.file_uploader("NIC Front", type=["jpg", "jpeg", "png", "pdf"], key="nic_front")
+                with col2:
+                    nic_back = st.file_uploader("NIC Back", type=["jpg", "jpeg", "png", "pdf"], key="nic_back")
+                
+                notes = st.text_area("Notes", placeholder="Any additional notes...", height=80)
+                
+                if st.form_submit_button("💾 Save Registration", use_container_width=True):
+                    if not engine_number:
+                        st.error("Engine Number is required.")
+                    elif not owner_name:
+                        st.error("Owner Name is required.")
+                    else:
+                        try:
+                            existing = supabase_reg.table("bike_registrations").select("*").eq("engine_number", engine_number).execute()
+                            if existing.data:
+                                st.error(f"Engine number '{engine_number}' already registered!")
+                            else:
+                                nic_front_url = None
+                                nic_back_url = None
+                                
+                                if nic_front:
+                                    file_path = f"nic-front/{engine_number}_front.jpg"
+                                    supabase_reg.storage.from_("bike-documents").upload(file_path, nic_front.getvalue(), {"content-type": nic_front.type})
+                                    nic_front_url = supabase_reg.storage.from_("bike-documents").get_public_url(file_path)
+                                
+                                if nic_back:
+                                    file_path = f"nic-back/{engine_number}_back.jpg"
+                                    supabase_reg.storage.from_("bike-documents").upload(file_path, nic_back.getvalue(), {"content-type": nic_back.type})
+                                    nic_back_url = supabase_reg.storage.from_("bike-documents").get_public_url(file_path)
+                                
+                                supabase_reg.table("bike_registrations").insert({
+                                    "engine_number": engine_number,
+                                    "chassis_number": chassis_number,
+                                    "model": final_model,
+                                    "owner_name": owner_name,
+                                    "owner_nic": owner_nic,
+                                    "owner_phone": owner_phone,
+                                    "owner_address": owner_address,
+                                    "registration_date": str(registration_date),
+                                    "serial_number": serial_number,
+                                    "purchase_dealer": purchase_dealer,
+                                    "nic_front_url": nic_front_url,
+                                    "nic_back_url": nic_back_url,
+                                    "notes": notes
+                                }).execute()
+                                
+                                st.success(f"✅ Registration saved for {owner_name}!")
+                                st.balloons()
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Registration error: {e}")
+        
+        with tab2:
+            st.markdown("### 🔍 Search Registration")
+            
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                search_by = st.selectbox("Search by", ["Engine Number", "Chassis Number", "Owner Name", "NIC"])
+            with col2:
+                search_query = st.text_input("Search", placeholder=f"Enter {search_by}...")
+            
+            if st.button("🔍 Search", use_container_width=True):
+                if search_query:
+                    try:
+                        query = supabase_reg.table("bike_registrations").select("*")
+                        
+                        if search_by == "Engine Number":
+                            query = query.eq("engine_number", search_query)
+                        elif search_by == "Chassis Number":
+                            query = query.eq("chassis_number", search_query)
+                        elif search_by == "Owner Name":
+                            query = query.ilike("owner_name", f"%{search_query}%")
+                        elif search_by == "NIC":
+                            query = query.ilike("owner_nic", f"%{search_query}%")
+                        
+                        results = query.execute().data
+                        
+                        if results:
+                            st.success(f"Found {len(results)} record(s)")
+                            
+                            for record in results:
+                                with st.expander(f"🔧 {record.get('engine_number')} — {record.get('owner_name')}"):
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown(f"""
+                                        **Engine Number:** {record.get('engine_number')}  
+                                        **Chassis Number:** {record.get('chassis_number')}  
+                                        **Model:** {record.get('model')}  
+                                        **Registration Date:** {record.get('registration_date')}  
+                                        **Serial Number:** {record.get('serial_number')}
+                                        """)
+                                    with col2:
+                                        st.markdown(f"""
+                                        **Owner Name:** {record.get('owner_name')}  
+                                        **NIC:** {record.get('owner_nic')}  
+                                        **Phone:** {record.get('owner_phone')}  
+                                        **Address:** {record.get('owner_address')}  
+                                        **Purchase Dealer:** {record.get('purchase_dealer')}
+                                        """)
+                                    
+                                    st.markdown("#### 🪪 NIC Images")
+                                    nic_col1, nic_col2 = st.columns(2)
+                                    with nic_col1:
+                                        if record.get('nic_front_url'):
+                                            st.image(record.get('nic_front_url'), caption="NIC Front", use_container_width=True)
+                                        else:
+                                            st.info("No NIC Front uploaded")
+                                    
+                                    with nic_col2:
+                                        if record.get('nic_back_url'):
+                                            st.image(record.get('nic_back_url'), caption="NIC Back", use_container_width=True)
+                                        else:
+                                            st.info("No NIC Back uploaded")
+                                    
+                                    if record.get('notes'):
+                                        st.markdown(f"**Notes:** {record.get('notes')}")
+                        else:
+                            st.warning("No records found.")
+                    except Exception as e:
+                        st.error(f"Search error: {e}")
+                else:
+                    st.warning("Please enter a search query.")
