@@ -730,7 +730,7 @@ elif page == "📦 Stock":
     st.dataframe(stock_data(purchases, sales), use_container_width=True, hide_index=True)
 
 # ==================== REPORTS =============================
-else:
+elif:
     st.title("📅 Date Range Report")
 
     start, end = date_range("Report From Date → To Date", "report_range")
