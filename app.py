@@ -728,37 +728,6 @@ elif page == "💸 Expenses":
 elif page == "📦 Stock":
     st.title("📦 Current Stock")
     st.dataframe(stock_data(purchases, sales), use_container_width=True, hide_index=True)
-
-# ==================== REPORTS =============================
-elif:
-    st.title("📅 Date Range Report")
-
-    start, end = date_range("Report From Date → To Date", "report_range")
-
-    dp = [x for x in purchases if in_range(x.get("purchase_date"), start, end)]
-    ds = [x for x in sales if in_range(x.get("sale_date"), start, end)]
-    de = [x for x in expenses if in_range(x.get("expense_date"), start, end)]
-    dpay = [x for x in payments if in_range(x.get("payment_date"), start, end)]
-    dcash = [x for x in cash_trans if in_range(x.get("transaction_date"), start, end)]
-
-    c = st.columns(5)
-    c[0].metric("PURCHASES", money(sum(purchase_total(x) for x in dp)))
-    c[1].metric("SALES", money(sum(sale_total(x) for x in ds)))
-    c[2].metric("EXPENSES", money(sum(n(x.get("amount")) for x in de)))
-    c[3].metric("PAYMENTS", money(sum(n(x.get("amount")) for x in dpay)))
-    c[4].metric("CASH TRANS", money(sum(n(x.get("amount")) for x in dcash)))
-
-    st.markdown("### 🛒 Purchases")
-    st.dataframe(dp, use_container_width=True, hide_index=True)
-    st.markdown("### 🧾 Sales")
-    st.dataframe(ds, use_container_width=True, hide_index=True)
-    st.markdown("### 💸 Expenses")
-    st.dataframe(de, use_container_width=True, hide_index=True)
-    st.markdown("### 💵 Customer Payments")
-    st.dataframe(dpay, use_container_width=True, hide_index=True)
-    st.markdown("### 💵 Cash Transactions")
-    st.dataframe(dcash, use_container_width=True, hide_index=True)
-    # ==================== BIKE REGISTRATION ====================
 elif page == "📄 Bike Registration":
     st.title("📄 Bike Registration / Ownership")
     
@@ -924,3 +893,30 @@ elif page == "📄 Bike Registration":
                         st.error(f"Search error: {e}")
                 else:
                     st.warning("Please enter a search query.")
+
+else:
+    st.title("📅 Date Range Report")
+    start, end = date_range("Report From Date → To Date", "report_range")
+    dp = [x for x in purchases if in_range(x.get("purchase_date"), start, end)]
+    ds = [x for x in sales if in_range(x.get("sale_date"), start, end)]
+    de = [x for x in expenses if in_range(x.get("expense_date"), start, end)]
+    dpay = [x for x in payments if in_range(x.get("payment_date"), start, end)]
+    dcash = [x for x in cash_trans if in_range(x.get("transaction_date"), start, end)]
+
+    c = st.columns(5)
+    c[0].metric("PURCHASES", money(sum(purchase_total(x) for x in dp)))
+    c[1].metric("SALES", money(sum(sale_total(x) for x in ds)))
+    c[2].metric("EXPENSES", money(sum(n(x.get("amount")) for x in de)))
+    c[3].metric("PAYMENTS", money(sum(n(x.get("amount")) for x in dpay)))
+    c[4].metric("CASH TRANS", money(sum(n(x.get("amount")) for x in dcash)))
+
+    st.markdown("### 🛒 Purchases")
+    st.dataframe(dp, use_container_width=True, hide_index=True)
+    st.markdown("### 🧾 Sales")
+    st.dataframe(ds, use_container_width=True, hide_index=True)
+    st.markdown("### 💸 Expenses")
+    st.dataframe(de, use_container_width=True, hide_index=True)
+    st.markdown("### 💵 Customer Payments")
+    st.dataframe(dpay, use_container_width=True, hide_index=True)
+    st.markdown("### 💵 Cash Transactions")
+    st.dataframe(dcash, use_container_width=True, hide_index=True)
