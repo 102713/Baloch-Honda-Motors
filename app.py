@@ -220,7 +220,6 @@ page = st.sidebar.radio("MAIN MENU", [
     "📄 Bike Registration",
     "📅 Reports"
 ])
-])
 
 if page != st.session_state.previous_page:
     st.session_state.previous_page = page
