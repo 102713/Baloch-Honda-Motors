@@ -168,9 +168,9 @@ if not st.session_state.logged_in:
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         if st.form_submit_button("🔐 Login", use_container_width=True):
-            if supabase:
+            if supabase_main:
                 try:
-                    r = (supabase.table("users").select("*")
+                    r = (supabase_main.table("users").select("*")
                          .eq("username", username)
                          .eq("password_hash", password)
                          .limit(1).execute())
