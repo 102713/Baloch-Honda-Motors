@@ -85,9 +85,9 @@ def q(v):
     except: return 0
 
 def rows(table):
-    if not supabase: return []
+    if not supabase_main. : return []
     try:
-        return supabase.table(table).select("*").execute().data or []
+        return supabase_main. table(table).select("*").execute().data or []
     except Exception as e:
         st.error(f"Could not read {table}: {e}")
         return []
@@ -337,9 +337,9 @@ elif page == "🛒 Purchases":
                 try:
                     # Check if supplier already exists
                     if supplier_code:
-                        existing = supabase.table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
+                        existing = supabase_main. table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
                         if not existing.data and supplier_name:
-                            supabase.table("suppliers").insert({
+                            supabase_main. table("suppliers").insert({
                                 "supplier_code": supplier_code,
                                 "name": supplier_name,
                                 "phone": phone
@@ -350,7 +350,7 @@ elif page == "🛒 Purchases":
                                 supabase.table("suppliers").update({"name": supplier_name}).eq("supplier_code", supplier_code).execute()
 
                     # Save purchase
-                    supabase.table("purchases").insert({
+                    supabase_main.table("purchases").insert({
                         "purchase_date": str(d),
                         "supplier_code": supplier_code,
                         "supplier_name": supplier_name,
@@ -393,7 +393,7 @@ elif page == "🛒 Purchases":
                 delete = dlt.form_submit_button("🗑️ Delete", use_container_width=True)
                 if update:
                     try:
-                        supabase.table("purchases").update({
+                        supabase_main. table("purchases").update({
                             "purchase_date": str(nd), "supplier_name": nsup,
                             "model": nmodel, "quantity": int(nq),
                             "rate_per_bike": float(nr), "notes": nn
@@ -447,7 +447,7 @@ elif page == "🏍️ Sales":
                 try:
                     # Auto-create customer if new
                     if customer_name and customer_code and customer_code not in customer_codes:
-                        supabase.table("customers").insert({
+                        supabase_main. table("customers").insert({
                             "customer_code": customer_code,
                             "name": customer_name,
                             "phone": phone
@@ -455,7 +455,7 @@ elif page == "🏍️ Sales":
                         st.info(f"New customer created: {customer_code}")
 
                     # ✅ FIX: Balance column hata diya (database auto calculate karega)
-                    supabase.table("sales").insert({
+                    supabase_main.table("sales").insert({
                         "sale_date": str(d),
                         "customer_code": customer_code,
                         "customer_name": customer_name or customer_codes.get(customer_code, ""),
@@ -502,7 +502,7 @@ elif page == "🏍️ Sales":
                 delete = dlt.form_submit_button("🗑️ Delete", use_container_width=True)
                 if update:
                     try:
-                        supabase.table("sales").update({
+                        supabase_main. table("sales").update({
                             "sale_date": str(nd), "customer_code": nc, "customer_name": nn,
                             "model": nmodel, "quantity": int(nq), "sale_rate_per_bike": float(nr),
                             "amount_received": float(nrec), "notes": nnotes
@@ -512,7 +512,7 @@ elif page == "🏍️ Sales":
                         st.error(f"Update error: {e}")
                 if delete:
                     try:
-                        supabase.table("sales").delete().eq("id", sid).execute()
+                        supabase_main. table("sales").delete().eq("id", sid).execute()
                         st.success("Sale deleted."); st.rerun()
                     except Exception as e:
                         st.error(f"Delete error: {e}")
@@ -645,7 +645,7 @@ elif page == "💵 Cash Transaction":
                     st.error("Enter a valid amount.")
                 else:
                     try:
-                        supabase.table("customer_cash_transactions").insert({
+                        supabase_main. table("customer_cash_transactions").insert({
                             "customer_code": code,
                             "transaction_date": str(d),
                             "transaction_type": trans_type,
@@ -677,7 +677,7 @@ elif page == "💸 Expenses":
                 st.error("Enter a valid amount.")
             else:
                 try:
-                    supabase.table("expenses").insert({
+                    supabase_main.table("expenses").insert({
                         "expense_date": str(d),
                         "category": category,
                         "description": description,
@@ -710,7 +710,7 @@ elif page == "💸 Expenses":
                 delete = dlt.form_submit_button("🗑️ Delete", use_container_width=True)
                 if update:
                     try:
-                        supabase.table("expenses").update({
+                        supabase_main.table("expenses").update({
                             "expense_date": str(nd), "category": nc,
                             "description": ndesc, "amount": float(namt)
                         }).eq("id", sid).execute()
@@ -719,7 +719,7 @@ elif page == "💸 Expenses":
                         st.error(f"Update error: {e}")
                 if delete:
                     try:
-                        supabase.table("expenses").delete().eq("id", sid).execute()
+                        supabase_main.table("expenses").delete().eq("id", sid).execute()
                         st.success("Expense deleted."); st.rerun()
                     except Exception as e:
                         st.error(f"Delete error: {e}")
