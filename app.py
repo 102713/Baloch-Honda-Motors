@@ -47,7 +47,7 @@ div[data-testid="stSidebar"] .stRadio label {font-weight: 700;}
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== SUPABASE ============================
+# ==================== SUPABASE CONNECTIONS ====================
 try:
     supabase_main = create_client(
         st.secrets["SUPABASE_URL"], 
@@ -85,9 +85,10 @@ def q(v):
     except: return 0
 
 def rows(table):
-    if not supabase_main. : return []
+    if not supabase_main:
+        return []
     try:
-        return supabase_main. table(table).select("*").execute().data or []
+        return supabase_main.table(table).select("*").execute().data or []
     except Exception as e:
         st.error(f"Could not read {table}: {e}")
         return []
@@ -335,11 +336,10 @@ elif page == "🛒 Purchases":
                 st.error("Enter a valid rate.")
             else:
                 try:
-                    # Check if supplier already exists
                     if supplier_code:
-                        existing = supabase_main. table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
+                        existing = supabase_main.table("suppliers").select("*").eq("supplier_code", supplier_code).execute()
                         if not existing.data and supplier_name:
-                            supabase_main. table("suppliers").insert({
+                            supabase_main.table("suppliers").insert({
                                 "supplier_code": supplier_code,
                                 "name": supplier_name,
                                 "phone": phone
@@ -347,9 +347,8 @@ elif page == "🛒 Purchases":
                             st.info(f"New supplier created: {supplier_code}")
                         elif existing.data and supplier_name:
                             if existing.data[0].get("name") != supplier_name:
-                                supabase.table("suppliers").update({"name": supplier_name}).eq("supplier_code", supplier_code).execute()
+                                supabase_main.table("suppliers").update({"name": supplier_name}).eq("supplier_code", supplier_code).execute()
 
-                    # Save purchase
                     supabase_main.table("purchases").insert({
                         "purchase_date": str(d),
                         "supplier_code": supplier_code,
@@ -393,7 +392,7 @@ elif page == "🛒 Purchases":
                 delete = dlt.form_submit_button("🗑️ Delete", use_container_width=True)
                 if update:
                     try:
-                        supabase_main. table("purchases").update({
+                        supabase_main.table("purchases").update({
                             "purchase_date": str(nd), "supplier_name": nsup,
                             "model": nmodel, "quantity": int(nq),
                             "rate_per_bike": float(nr), "notes": nn
@@ -403,7 +402,7 @@ elif page == "🛒 Purchases":
                         st.error(f"Update error: {e}")
                 if delete:
                     try:
-                        supabase.table("purchases").delete().eq("id", sid).execute()
+                        supabase_main.table("purchases").delete().eq("id", sid).execute()
                         st.success("Purchase deleted."); st.rerun()
                     except Exception as e:
                         st.error(f"Delete error: {e}")
@@ -445,16 +444,14 @@ elif page == "🏍️ Sales":
                 st.error("Enter a valid rate.")
             else:
                 try:
-                    # Auto-create customer if new
                     if customer_name and customer_code and customer_code not in customer_codes:
-                        supabase_main. table("customers").insert({
+                        supabase_main.table("customers").insert({
                             "customer_code": customer_code,
                             "name": customer_name,
                             "phone": phone
                         }).execute()
                         st.info(f"New customer created: {customer_code}")
 
-                    # ✅ FIX: Balance column hata diya (database auto calculate karega)
                     supabase_main.table("sales").insert({
                         "sale_date": str(d),
                         "customer_code": customer_code,
@@ -464,7 +461,6 @@ elif page == "🏍️ Sales":
                         "sale_rate_per_bike": float(rate),
                         "amount_received": float(received or 0),
                         "notes": notes
-                        # balance nahi bhej rahe — database GENERATED column hai
                     }).execute()
                     st.success("Sale saved successfully!")
                     st.rerun()
@@ -477,7 +473,7 @@ elif page == "🏍️ Sales":
 
     c = st.columns(4)
     c[0].metric("TOTAL SALES", money(sum(sale_total(x) for x in data)))
-    c[1].metric("BIKES SOLD", sum(q(x.get("quantity")) for x in data))
+    c[1].metric("BIKES SOLD", sum(q(x.get("quantity")) for x in data)))
     c[2].metric("RECEIVED", money(sum(n(x.get("amount_received")) for x in data)))
     c[3].metric("BALANCE", money(sum(max(sale_total(x) - n(x.get("amount_received")), 0) for x in data)))
     st.dataframe(data, use_container_width=True, hide_index=True)
@@ -502,7 +498,7 @@ elif page == "🏍️ Sales":
                 delete = dlt.form_submit_button("🗑️ Delete", use_container_width=True)
                 if update:
                     try:
-                        supabase_main. table("sales").update({
+                        supabase_main.table("sales").update({
                             "sale_date": str(nd), "customer_code": nc, "customer_name": nn,
                             "model": nmodel, "quantity": int(nq), "sale_rate_per_bike": float(nr),
                             "amount_received": float(nrec), "notes": nnotes
@@ -512,7 +508,7 @@ elif page == "🏍️ Sales":
                         st.error(f"Update error: {e}")
                 if delete:
                     try:
-                        supabase_main. table("sales").delete().eq("id", sid).execute()
+                        supabase_main.table("sales").delete().eq("id", sid).execute()
                         st.success("Sale deleted."); st.rerun()
                     except Exception as e:
                         st.error(f"Delete error: {e}")
@@ -532,6 +528,7 @@ elif page == "👥 Customers":
             "Outstanding": money(max(get_customer_balance(code), 0))
         })
     st.dataframe(table, use_container_width=True, hide_index=True)
+
 # ==================== CUSTOMER KHATA ======================
 elif page == "💰 Customer Khata":
     st.title("💰 Customer Khata / Ledger")
@@ -553,21 +550,15 @@ elif page == "💰 Customer Khata":
             start, end = date_range("From Date → To Date", f"khata_range_{code}")
 
             ledger = []
-            
-            # ✅ SALES SE UDHAAR (BALANCE) ADD KAREIN
             for x in sales:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("sale_date"), start, end):
-                    balance_amount = max(sale_total(x) - n(x.get("amount_received")), 0)
-                    if balance_amount > 0:
-                        ledger.append({
-                            "Date": x.get("sale_date"),
-                            "Type": "Bike Sale (Udhaar)",
-                            "Description": f"{x.get('model')} × {q(x.get('quantity'))}",
-                            "Debit (Udhaar)": balance_amount,
-                            "Credit (Payment)": 0
-                        })
-            
-            # ✅ PAYMENTS
+                    ledger.append({
+                        "Date": x.get("sale_date"),
+                        "Type": "Bike Sale",
+                        "Description": f"{x.get('model')} × {q(x.get('quantity'))}",
+                        "Debit (Udhaar)": max(sale_total(x) - n(x.get("amount_received")), 0),
+                        "Credit (Payment)": 0
+                    })
             for x in payments:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("payment_date"), start, end):
                     ledger.append({
@@ -577,8 +568,6 @@ elif page == "💰 Customer Khata":
                         "Debit (Udhaar)": 0,
                         "Credit (Payment)": n(x.get("amount"))
                     })
-            
-            # ✅ CASH TRANSACTIONS
             for x in cash_trans:
                 if str(x.get("customer_code") or "") == code and in_range(x.get("transaction_date"), start, end):
                     ledger.append({
@@ -591,39 +580,19 @@ elif page == "💰 Customer Khata":
 
             ledger.sort(key=lambda x: str(x["Date"] or ""))
 
-            # ✅ RUNNING BALANCE
             running = 0
             for x in ledger:
                 running += x["Debit (Udhaar)"] - x["Credit (Payment)"]
                 x["Balance"] = running
 
-            # ✅ CURRENT OUTSTANDING BALANCE
-            current_balance = 0
-            for x in sales:
-                if str(x.get("customer_code") or "") == code:
-                    current_balance += max(sale_total(x) - n(x.get("amount_received")), 0)
-            for x in payments:
-                if str(x.get("customer_code") or "") == code:
-                    current_balance -= n(x.get("amount"))
-            for x in cash_trans:
-                if str(x.get("customer_code") or "") == code:
-                    if x.get("transaction_type") == "Cash Udaar":
-                        current_balance += n(x.get("amount"))
-                    else:
-                        current_balance -= n(x.get("amount"))
-
             c = st.columns(3)
             c[0].metric("TOTAL UDHAAR", money(sum(x["Debit (Udhaar)"] for x in ledger)))
             c[1].metric("TOTAL PAYMENTS", money(sum(x["Credit (Payment)"] for x in ledger)))
-            c[2].metric("CURRENT BALANCE", money(max(current_balance, 0)))
+            c[2].metric("CURRENT BALANCE", money(max(running, 0)))
 
-            if ledger:
-                st.dataframe(ledger, use_container_width=True, hide_index=True)
-            else:
-                st.info("No transactions found for this period.")
+            st.dataframe(ledger, use_container_width=True, hide_index=True)
     else:
         st.info("No customers found.")
-
 
 # ==================== CASH TRANSACTION ====================
 elif page == "💵 Cash Transaction":
@@ -645,7 +614,7 @@ elif page == "💵 Cash Transaction":
                     st.error("Enter a valid amount.")
                 else:
                     try:
-                        supabase_main. table("customer_cash_transactions").insert({
+                        supabase_main.table("customer_cash_transactions").insert({
                             "customer_code": code,
                             "transaction_date": str(d),
                             "transaction_type": trans_type,
@@ -728,6 +697,8 @@ elif page == "💸 Expenses":
 elif page == "📦 Stock":
     st.title("📦 Current Stock")
     st.dataframe(stock_data(purchases, sales), use_container_width=True, hide_index=True)
+
+# ==================== BIKE REGISTRATION ====================
 elif page == "📄 Bike Registration":
     st.title("📄 Bike Registration / Ownership")
     
@@ -894,6 +865,7 @@ elif page == "📄 Bike Registration":
                 else:
                     st.warning("Please enter a search query.")
 
+# ==================== REPORTS =============================
 else:
     st.title("📅 Date Range Report")
     start, end = date_range("Report From Date → To Date", "report_range")
