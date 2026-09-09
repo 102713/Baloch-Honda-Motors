@@ -473,11 +473,10 @@ elif page == "🏍️ Sales":
 
     c = st.columns(4)
     c[0].metric("TOTAL SALES", money(sum(sale_total(x) for x in data)))
-    c[1].metric("BIKES SOLD", sum(q(x.get("quantity")) for x in data)))
+    c[1].metric("BIKES SOLD", sum(q(x.get("quantity")) for x in data))
     c[2].metric("RECEIVED", money(sum(n(x.get("amount_received")) for x in data)))
     c[3].metric("BALANCE", money(sum(max(sale_total(x) - n(x.get("amount_received")), 0) for x in data)))
     st.dataframe(data, use_container_width=True, hide_index=True)
-
     if sales:
         st.markdown("### ✏️ Edit / Delete Sale")
         ids = [x.get("id") for x in sales if x.get("id")]
