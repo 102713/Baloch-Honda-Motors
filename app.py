@@ -696,7 +696,6 @@ elif page == "💸 Expenses":
 elif page == "📦 Stock":
     st.title("📦 Current Stock")
     st.dataframe(stock_data(purchases, sales), use_container_width=True, hide_index=True)
-
 # ==================== BIKE REGISTRATION ====================
 elif page == "📄 Bike Registration":
     st.title("📄 Bike Registration / Ownership")
@@ -706,6 +705,7 @@ elif page == "📄 Bike Registration":
     else:
         tab1, tab2 = st.tabs(["📝 New Registration", "🔍 Search Registration"])
         
+        # ========== TAB 1: NEW REGISTRATION ==========
         with tab1:
             with st.form("bike_registration"):
                 st.markdown("### 🔧 Bike Details")
@@ -723,6 +723,7 @@ elif page == "📄 Bike Registration":
                 col1, col2 = st.columns(2)
                 with col1:
                     owner_name = st.text_input("Owner Name", placeholder="Full name as per NIC")
+                    father_name = st.text_input("Father Name", placeholder="Father's full name")
                     owner_nic = st.text_input("NIC", placeholder="12345-6789012-3")
                 with col2:
                     owner_phone = st.text_input("Phone", placeholder="0300-1234567")
@@ -776,6 +777,7 @@ elif page == "📄 Bike Registration":
                                     "chassis_number": chassis_number,
                                     "model": final_model,
                                     "owner_name": owner_name,
+                                    "father_name": father_name,
                                     "owner_nic": owner_nic,
                                     "owner_phone": owner_phone,
                                     "owner_address": owner_address,
@@ -793,12 +795,13 @@ elif page == "📄 Bike Registration":
                         except Exception as e:
                             st.error(f"Registration error: {e}")
         
+        # ========== TAB 2: SEARCH REGISTRATION ==========
         with tab2:
             st.markdown("### 🔍 Search Registration")
             
             col1, col2 = st.columns([1, 2])
             with col1:
-                search_by = st.selectbox("Search by", ["Engine Number", "Chassis Number", "Owner Name", "NIC"])
+                search_by = st.selectbox("Search by", ["Engine Number", "Chassis Number", "Owner Name", "Father Name", "NIC"])
             with col2:
                 search_query = st.text_input("Search", placeholder=f"Enter {search_by}...")
             
@@ -813,6 +816,8 @@ elif page == "📄 Bike Registration":
                             query = query.eq("chassis_number", search_query)
                         elif search_by == "Owner Name":
                             query = query.ilike("owner_name", f"%{search_query}%")
+                        elif search_by == "Father Name":
+                            query = query.ilike("father_name", f"%{search_query}%")
                         elif search_by == "NIC":
                             query = query.ilike("owner_nic", f"%{search_query}%")
                         
@@ -835,6 +840,7 @@ elif page == "📄 Bike Registration":
                                     with col2:
                                         st.markdown(f"""
                                         **Owner Name:** {record.get('owner_name')}  
+                                        **Father Name:** {record.get('father_name') or 'N/A'}  
                                         **NIC:** {record.get('owner_nic')}  
                                         **Phone:** {record.get('owner_phone')}  
                                         **Address:** {record.get('owner_address')}  
@@ -857,37 +863,121 @@ elif page == "📄 Bike Registration":
                                     
                                     if record.get('notes'):
                                         st.markdown(f"**Notes:** {record.get('notes')}")
+
+                                    # ========== EDIT & DELETE BUTTONS ==========
+                                    st.markdown("---")
+                                    col_edit, col_delete = st.columns(2)
+                                    
+                                    with col_edit:
+                                        if st.button(f"✏️ Edit", key=f"edit_{record.get('id')}"):
+                                            st.session_state.edit_record = record
+                                            st.rerun()
+                                    
+                                    with col_delete:
+                                        if st.button(f"🗑️ Delete", key=f"delete_{record.get('id')}"):
+                                            try:
+                                                supabase_reg.table("bike_registrations").delete().eq("id", record.get('id')).execute()
+                                                st.success(f"Record {record.get('engine_number')} deleted successfully!")
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Delete error: {e}")
+                        
+                        # ========== EDIT FORM ==========
+                        if "edit_record" in st.session_state and st.session_state.edit_record:
+                            record = st.session_state.edit_record
+                            st.markdown("---")
+                            st.markdown("### ✏️ Edit Registration")
+                            
+                            with st.form("edit_registration_form"):
+                                st.markdown("#### 🔧 Bike Details")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    engine_number = st.text_input("Engine Number", value=record.get('engine_number'), disabled=True)
+                                    chassis_number = st.text_input("Chassis Number", value=record.get('chassis_number') or "")
+                                with col2:
+                                    model = st.text_input("Model", value=record.get('model') or "")
+                                
+                                st.markdown("#### 👤 Owner Details")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    owner_name = st.text_input("Owner Name", value=record.get('owner_name') or "")
+                                    father_name = st.text_input("Father Name", value=record.get('father_name') or "")
+                                    owner_nic = st.text_input("NIC", value=record.get('owner_nic') or "")
+                                with col2:
+                                    owner_phone = st.text_input("Phone", value=record.get('owner_phone') or "")
+                                    owner_address = st.text_area("Address", value=record.get('owner_address') or "", height=80)
+                                
+                                st.markdown("#### 📅 Registration Details")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    registration_date = st.date_input("Registration Date", value=date.fromisoformat(record.get('registration_date')) if record.get('registration_date') else date.today())
+                                    serial_number = st.text_input("Serial Number", value=record.get('serial_number') or "")
+                                with col2:
+                                    purchase_dealer = st.text_input("Purchase Dealer", value=record.get('purchase_dealer') or "")
+                                
+                                st.markdown("#### 📎 Upload NIC (Optional)")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    new_nic_front = st.file_uploader(
+                                        "New NIC Front (optional)", 
+                                        type=["jpg", "jpeg", "png", "pdf"], 
+                                        key=f"edit_nic_front_{record.get('id')}"
+                                    )
+                                    if record.get('nic_front_url'):
+                                        st.image(record.get('nic_front_url'), caption="Current NIC Front", width=150)
+                                with col2:
+                                    new_nic_back = st.file_uploader(
+                                        "New NIC Back (optional)", 
+                                        type=["jpg", "jpeg", "png", "pdf"], 
+                                        key=f"edit_nic_back_{record.get('id')}"
+                                    )
+                                    if record.get('nic_back_url'):
+                                        st.image(record.get('nic_back_url'), caption="Current NIC Back", width=150)
+                                
+                                notes = st.text_area("Notes", value=record.get('notes') or "", height=80)
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.form_submit_button("💾 Update Registration", use_container_width=True):
+                                        try:
+                                            update_data = {
+                                                "chassis_number": chassis_number,
+                                                "model": model,
+                                                "owner_name": owner_name,
+                                                "father_name": father_name,
+                                                "owner_nic": owner_nic,
+                                                "owner_phone": owner_phone,
+                                                "owner_address": owner_address,
+                                                "registration_date": str(registration_date),
+                                                "serial_number": serial_number,
+                                                "purchase_dealer": purchase_dealer,
+                                                "notes": notes
+                                            }
+                                            
+                                            if new_nic_front:
+                                                file_path = f"nic-front/{record.get('engine_number')}_front.jpg"
+                                                supabase_reg.storage.from_("bike-documents").upload(file_path, new_nic_front.getvalue(), {"content-type": new_nic_front.type})
+                                                update_data["nic_front_url"] = supabase_reg.storage.from_("bike-documents").get_public_url(file_path)
+                                            
+                                            if new_nic_back:
+                                                file_path = f"nic-back/{record.get('engine_number')}_back.jpg"
+                                                supabase_reg.storage.from_("bike-documents").upload(file_path, new_nic_back.getvalue(), {"content-type": new_nic_back.type})
+                                                update_data["nic_back_url"] = supabase_reg.storage.from_("bike-documents").get_public_url(file_path)
+                                            
+                                            supabase_reg.table("bike_registrations").update(update_data).eq("id", record.get('id')).execute()
+                                            st.success("✅ Record updated successfully!")
+                                            st.session_state.edit_record = None
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Update error: {e}")
+                                
+                                with col2:
+                                    if st.form_submit_button("❌ Cancel", use_container_width=True):
+                                        st.session_state.edit_record = None
+                                        st.rerun()
                         else:
                             st.warning("No records found.")
                     except Exception as e:
                         st.error(f"Search error: {e}")
                 else:
                     st.warning("Please enter a search query.")
-
-# ==================== REPORTS =============================
-else:
-    st.title("📅 Date Range Report")
-    start, end = date_range("Report From Date → To Date", "report_range")
-    dp = [x for x in purchases if in_range(x.get("purchase_date"), start, end)]
-    ds = [x for x in sales if in_range(x.get("sale_date"), start, end)]
-    de = [x for x in expenses if in_range(x.get("expense_date"), start, end)]
-    dpay = [x for x in payments if in_range(x.get("payment_date"), start, end)]
-    dcash = [x for x in cash_trans if in_range(x.get("transaction_date"), start, end)]
-
-    c = st.columns(5)
-    c[0].metric("PURCHASES", money(sum(purchase_total(x) for x in dp)))
-    c[1].metric("SALES", money(sum(sale_total(x) for x in ds)))
-    c[2].metric("EXPENSES", money(sum(n(x.get("amount")) for x in de)))
-    c[3].metric("PAYMENTS", money(sum(n(x.get("amount")) for x in dpay)))
-    c[4].metric("CASH TRANS", money(sum(n(x.get("amount")) for x in dcash)))
-
-    st.markdown("### 🛒 Purchases")
-    st.dataframe(dp, use_container_width=True, hide_index=True)
-    st.markdown("### 🧾 Sales")
-    st.dataframe(ds, use_container_width=True, hide_index=True)
-    st.markdown("### 💸 Expenses")
-    st.dataframe(de, use_container_width=True, hide_index=True)
-    st.markdown("### 💵 Customer Payments")
-    st.dataframe(dpay, use_container_width=True, hide_index=True)
-    st.markdown("### 💵 Cash Transactions")
-    st.dataframe(dcash, use_container_width=True, hide_index=True)
